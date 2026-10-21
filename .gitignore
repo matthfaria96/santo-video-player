@@ -1,0 +1,20 @@
+# Dependências de terceiros (não fazem parte deste repositório)
+/vlc/
+/shaderglass/
+/glew-2.3.1/
+
+# Build nativo (artefatos)
+/contrib-native/
+/vlc-build-native/
+*.log
+
+# Binários/objetos da GUI
+/gui/*.exe
+/gui/*.o
+
+# Configuração gerada em runtime
+SantoVideoPlayer.ini
+
+# Python
+__pycache__/
+*.pyc
