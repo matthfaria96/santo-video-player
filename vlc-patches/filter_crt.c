@@ -54,20 +54,21 @@ enum crt_param
     CRT_GAMMA_IN, CRT_GAMMA_OUT, CRT_BRIGHT_BOOST,
     CRT_SCANLINE_STRENGTH, CRT_SCANLINE_PERIOD, CRT_SCANLINE_BEAM,
     CRT_MASK_STRENGTH, CRT_MASK_SIZE,
+    CRT_CURVATURE,
     CRT_PARAM_COUNT,
 };
 
 static const char *const crt_option_names[CRT_PARAM_COUNT + 1] = {
     "gamma-in", "gamma-out", "bright-boost",
     "scanline-strength", "scanline-period", "scanline-beam",
-    "mask-strength", "mask-size",
+    "mask-strength", "mask-size", "curvature",
     NULL,
 };
 
 static const char *const crt_uniform_names[CRT_PARAM_COUNT] = {
     "crt_gamma_in", "crt_gamma_out", "crt_bright_boost",
     "crt_scanline_strength", "crt_scanline_period", "crt_scanline_beam",
-    "crt_mask_strength", "crt_mask_size",
+    "crt_mask_strength", "crt_mask_size", "crt_curvature",
 };
 
 struct sys {
@@ -214,9 +215,20 @@ Open(struct vlc_gl_filter *filter, const config_chain_t *config,
         "uniform float crt_scanline_beam;\n"
         "uniform float crt_mask_strength;\n"
         "uniform float crt_mask_size;\n"
+        "uniform float crt_curvature;\n"
         "#define PI 3.141592653589\n"
         "void main() {\n"
-        "  vec3 col = vlc_texture(tex_coords).rgb;\n"
+        "  vec2 uv = tex_coords;\n"
+        "  if (crt_curvature > 0.001) {\n"
+        "    vec2 p = uv * 2.0 - 1.0;\n"
+        "    p *= 1.0 + crt_curvature * 0.35 * dot(p, p);\n"
+        "    uv = p * 0.5 + 0.5;\n"
+        "    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {\n"
+        "      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+        "      return;\n"
+        "    }\n"
+        "  }\n"
+        "  vec3 col = vlc_texture(uv).rgb;\n"
         "\n"
         "  /* gamma input: work in linear space */\n"
         "  col = pow(col, vec3(crt_gamma_in));\n"
@@ -306,6 +318,7 @@ error:
 #define CRT_SCANLINE_BEAM_TEXT N_("CRT scanline beam sharpness")
 #define CRT_MASK_STRENGTH_TEXT N_("CRT mask strength")
 #define CRT_MASK_SIZE_TEXT N_("CRT mask size (pixels per stripe)")
+#define CRT_CURVATURE_TEXT N_("CRT tube curvature (0=flat, 1=curved)")
 
 vlc_module_begin()
     set_shortname(N_("CRT shader"))
@@ -330,4 +343,6 @@ vlc_module_begin()
                          CRT_MASK_STRENGTH_TEXT, NULL)
     add_float_with_range(CRT_CFG_PREFIX "mask-size", 1.0, 1.0, 8.0,
                          CRT_MASK_SIZE_TEXT, NULL)
+    add_float_with_range(CRT_CFG_PREFIX "curvature", 0.0, 0.0, 1.0,
+                         CRT_CURVATURE_TEXT, NULL)
 vlc_module_end()

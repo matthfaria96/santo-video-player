@@ -73,6 +73,7 @@ struct ShaderConfig {
     double gamma_in          = 2.0;
     double gamma_out         = 1.8;
     double bright_boost      = 1.2;
+    double curvature         = 0.0;
 };
 
 struct Preset {
@@ -81,15 +82,17 @@ struct Preset {
     double scanline;
     double mask;
     double period;
+    double curvature;
 };
 static const Preset kPresets[] = {
-    { L"Sem shader",             false, 0.0, 0.0, 2.0 },
-    { L"CRT Clássico (padrão)",  true,  0.7, 0.3, 2.0 },
-    { L"CRT Suave",              true,  0.4, 0.2, 2.0 },
-    { L"CRT Forte",              true,  0.9, 0.6, 3.0 },
-    { L"Só scanlines",           true,  0.7, 0.0, 2.0 },
+    { L"Sem shader",             false, 0.0, 0.0, 2.0, 0.0 },
+    { L"CRT Clássico (padrão)",  true,  0.7, 0.3, 2.0, 0.0 },
+    { L"CRT Suave",              true,  0.4, 0.2, 2.0, 0.0 },
+    { L"CRT Forte",              true,  0.9, 0.6, 3.0, 0.0 },
+    { L"Só scanlines",           true,  0.7, 0.0, 2.0, 0.0 },
+    { L"CRT Tubo (curvo)",       true,  0.7, 0.3, 2.0, 1.0 },
 };
-static const int kPresetCount = 5;
+static const int kPresetCount = 6;
 
 // ---------------------------------------------------------------------------
 // Estado global
@@ -239,6 +242,7 @@ static void loadSettings() {
     g.cfg.scanline_strength = p.scanline;
     g.cfg.mask_strength = p.mask;
     g.cfg.scanline_period = p.period;
+    g.cfg.curvature = p.curvature;
 }
 
 static void saveSettings() {
@@ -287,6 +291,8 @@ static std::vector<const char*> buildVlcArgs(std::vector<std::string>& store) {
         std::snprintf(buf, sizeof buf, "--crt-gamma-out=%.2f", g.cfg.gamma_out);
         store.push_back(buf);
         std::snprintf(buf, sizeof buf, "--crt-bright-boost=%.2f", g.cfg.bright_boost);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-curvature=%.2f", g.cfg.curvature);
         store.push_back(buf);
     }
     std::vector<const char*> args;
@@ -636,6 +642,7 @@ static void applyPreset(int idx) {
     g.cfg.scanline_strength = p.scanline;
     g.cfg.mask_strength = p.mask;
     g.cfg.scanline_period = p.period;
+    g.cfg.curvature = p.curvature;
     if (!g.file.empty()) recreateInstance();
     if (g.hFx) InvalidateRect(g.hFx, nullptr, FALSE);
 }

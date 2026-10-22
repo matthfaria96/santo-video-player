@@ -13,7 +13,8 @@ O efeito CRT roda dentro do pipeline OpenGL do próprio VLC (um filtro
   play/pause/parar, anterior/próxima, barra de progresso + tempo, volume/mudo,
   tela cheia.
 - **Efeitos CRT** com presets (Sem shader / Clássico / Suave / Forte / Só
-  scanlines) + sliders de scanlines e máscara.
+  scanlines / Tubo curvo) + sliders de scanlines e máscara. O preset "Tubo
+  curvo" aplica curvatura de TV de tubo com bordas pretas nas laterais.
 - Velocidade de reprodução, legendas automáticas (.srt/.sub/.ass), repetição
   (uma/todas), proporção (original/preencher/16:9/4:3/1:1), captura de tela.
 - Persistência de janela/volume/efeito (arquivo `SantoVideoPlayer.ini`).
