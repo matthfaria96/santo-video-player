@@ -37,6 +37,8 @@ struct ContentView: View {
         } isTargeted: { dropTargeted = $0 }
         .onChange(of: model.isPlaying) { _, playing in if !playing { reveal() } }
         .onChange(of: layout) { _, _ in reveal() }
+        // The panels belong to a playing video; the home screen can't close them (no bar).
+        .onChange(of: model.hasMedia) { _, has in if !has { panel = nil } }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { _ in
             isFullScreen = true
             reveal()
@@ -69,7 +71,7 @@ struct ContentView: View {
             }
             OSDView(message: model.osd, topInset: classic ? 16 : 58)
             if model.showStats, model.hasMedia, let renderer = model.renderer {
-                StatsOverlay(renderer: renderer, dropped: { model.droppedFrames })
+                StatsOverlay(renderer: renderer, dropped: { model.droppedFrames }, decoder: { model.decoderInfo })
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.top, classic ? 14 : 56).padding(.leading, 18)
             }

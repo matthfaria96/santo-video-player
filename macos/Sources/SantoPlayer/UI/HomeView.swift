@@ -128,8 +128,7 @@ private struct RecentCard: View {
 
     @ViewBuilder
     private var artwork: some View {
-        let url = ArtworkCache.url(for: item.url)
-        if let image = NSImage(contentsOf: url) {
+        if let image = ArtworkCache.image(for: item.url, version: version) {
             Image(nsImage: image).resizable().aspectRatio(contentMode: .fill).id(version)
         } else {
             ZStack {

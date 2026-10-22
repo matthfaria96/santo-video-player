@@ -64,6 +64,7 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
     /// Drops the current picture (new file or closed media).
     func resetFrame() {
         texture = nil
+        if !acceptsFrames { bridge?.releaseFrames() }
         statsWindow = StatsWindow()
         needsRedraw = true
     }
@@ -228,6 +229,28 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         buffer.commit()
         buffer.waitUntilCompleted()
         return Self.cgImage(from: targetTex)
+    }
+
+    /// Same as renderImage, but the GPU wait and the read-back happen off the
+    /// main thread (the effects panel renders eight of these every few seconds).
+    func renderImageAsync(size: CGSize, pixelScale: CGFloat = 2, settings override: CRTSettings) async -> CGImage? {
+        guard let tex = texture else { return nil }
+        let width = Int(size.width.rounded()), height = Int(size.height.rounded())
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width,
+                                                            height: height, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]
+        desc.storageMode = .shared
+        guard width > 0, height > 0, let targetTex = device.makeTexture(descriptor: desc),
+              let buffer = queue.makeCommandBuffer() else { return nil }
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = targetTex
+        pass.colorAttachments[0].storeAction = .store
+        encode(into: buffer, pass: pass, viewport: size, pixelScale: pixelScale, source: tex,
+               overrideRect: nil, settings: override)
+        return await withCheckedContinuation { continuation in
+            buffer.addCompletedHandler { _ in continuation.resume(returning: Self.cgImage(from: targetTex)) }
+            buffer.commit()
+        }
     }
 
     private static func cgImage(from tex: MTLTexture) -> CGImage? {

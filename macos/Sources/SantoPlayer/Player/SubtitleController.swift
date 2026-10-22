@@ -16,10 +16,11 @@ final class SubtitleController {
     var fontScale: Double = UserDefaults.standard.object(forKey: "subtitleScale") as? Double ?? 1 {
         didSet { UserDefaults.standard.set(fontScale, forKey: "subtitleScale") }
     }
-    var showBackground: Bool = UserDefaults.standard.object(forKey: "subtitleBackground") as? Bool ?? true {
+    var showBackground: Bool = UserDefaults.standard.object(forKey: "subtitleBackground") as? Bool ?? false {
         didSet { UserDefaults.standard.set(showBackground, forKey: "subtitleBackground") }
     }
-    var insideScreen: Bool = UserDefaults.standard.bool(forKey: "subtitleInside") {
+    /// Default: drawn by mpv inside the picture (original style, CRT effect on it).
+    var insideScreen: Bool = UserDefaults.standard.object(forKey: "subtitleInside") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(insideScreen, forKey: "subtitleInside")
             applyVisibility()

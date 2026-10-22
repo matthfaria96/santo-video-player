@@ -7,8 +7,6 @@
 "Salvar captura" = "Save Screenshot";
 "Reprodução" = "Playback";
 "Reproduzir / Pausar" = "Play / Pause";
-"Voltar 10 s" = "Back 10 s";
-"Avançar 10 s" = "Forward 10 s";
 "Voltar 1 min" = "Back 1 min";
 "Avançar 1 min" = "Forward 1 min";
 "Quadro anterior" = "Previous Frame";
@@ -92,9 +90,7 @@
 "Picture in Picture (⌥⌘P)" = "Picture in Picture (⌥⌘P)";
 "Tela cheia (F)" = "Full Screen (F)";
 "Anterior (⌘←)" = "Previous (⌘←)";
-"Voltar 10 s (←)" = "Back 10 s (←)";
 "Reproduzir/Pausar (espaço)" = "Play/Pause (space)";
-"Avançar 10 s (→)" = "Forward 10 s (→)";
 "Próximo (⌘→)" = "Next (⌘→)";
 "Silenciar (M)" = "Mute (M)";
 "Velocidade ([ e ])" = "Speed ([ and ])";
@@ -135,7 +131,6 @@
 "Perdidos" = "Dropped";
 "Sobre o Santo Video Player" = "About Santo Video Player";
 "Versão %@" = "Version %@";
-"Player de vídeo com efeito CRT de TV de tubo aplicado só sobre o vídeo. Abre praticamente qualquer formato, com faixas de áudio, legendas, Picture in Picture e continuar de onde parou." = "A video player with a CRT tube-TV effect applied only to the video. It opens almost any format, with audio tracks, subtitles, Picture in Picture and resume where you left off.";
 "Santo Video Player é software livre sob a GNU GPL v2 ou posterior. Usa os projetos de código aberto listados nas licenças." = "Santo Video Player is free software under the GNU GPL v2 or later. It builds on the open-source projects listed in its licenses.";
 "Licenças de código aberto" = "Open-Source Licenses";
 "OK" = "OK";
@@ -217,3 +212,4 @@
 "Sobre os tipos de máscara" = "About mask types";
 "A tela de um CRT é feita de pontinhos vermelhos, verdes e azuis. O desenho desses pontos muda conforme o tipo de tubo — e muda a textura da imagem." = "A CRT screen is made of tiny red, green and blue phosphors. Their layout depends on the kind of tube — and it changes the texture of the picture.";
 "Editado" = "Edited";
+"Decodificação" = "Decoding";

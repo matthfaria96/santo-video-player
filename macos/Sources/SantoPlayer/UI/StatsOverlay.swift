@@ -4,6 +4,7 @@ import SwiftUI
 struct StatsOverlay: View {
     let renderer: CRTRenderer
     let dropped: () -> Int
+    let decoder: () -> String
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
@@ -13,6 +14,7 @@ struct StatsOverlay: View {
                 row("Desenhos", "\(Int(s.drawsPerSecond))/s  ·  \(s.drawableSize)")
                 row("GPU (CRT)", String(format: "%.2f ms", s.gpuMilliseconds))
                 row("Perdidos", "\(dropped())")
+                row("Decodificação", decoder())
             }
             .font(.system(size: 11, weight: .medium).monospaced())
             .padding(10)
@@ -23,7 +25,7 @@ struct StatsOverlay: View {
 
     private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
         HStack(spacing: 8) {
-            Text(title).foregroundStyle(.secondary).frame(width: 72, alignment: .leading)
+            Text(title).foregroundStyle(.secondary).frame(width: 96, alignment: .leading)
             Text(value).foregroundStyle(.white)
         }
     }

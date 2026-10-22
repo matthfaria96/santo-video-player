@@ -93,7 +93,7 @@ final class AppSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        layout = PlayerLayout(rawValue: defaults.string(forKey: PlayerLayout.storageKey) ?? "") ?? .modern
+        layout = PlayerLayout(rawValue: defaults.string(forKey: PlayerLayout.storageKey) ?? "") ?? .classic
         resumePlayback = defaults.object(forKey: "resumePlayback") as? Bool ?? true
         showRecents = defaults.object(forKey: "showRecents") as? Bool ?? true
         hardwareDecoding = defaults.object(forKey: "hardwareDecoding") as? Bool ?? true

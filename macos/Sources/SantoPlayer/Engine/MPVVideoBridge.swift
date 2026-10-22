@@ -37,6 +37,8 @@ final class MPVVideoBridge {
     /// Three surfaces: mpv writes one while Metal may still sample the others.
     private var targets: [Target] = []
     private var nextTarget = 0
+    /// The frame mpv drew last, waiting for the GPU to finish it.
+    private var inFlight: (target: Target, fence: GLsync)?
     private let pending = OSAllocatedUnfairLock(initialState: false)
 
     init(client: MPVClient, device: MTLDevice) throws {
@@ -87,6 +89,13 @@ final class MPVVideoBridge {
 
     deinit { shutdown() }
 
+    /// Frees the frame surfaces (three full-size IOSurfaces) when nothing plays.
+    func releaseFrames() {
+        guard renderContext != nil else { return }
+        CGLSetCurrentContext(cgl)
+        releaseTargets()
+    }
+
     /// Must run before the mpv handle is destroyed.
     func shutdown() {
         guard let renderContext else { return }
@@ -100,17 +109,25 @@ final class MPVVideoBridge {
     }
 
     /// Renders mpv's next frame at `width`×`height` if one is due; returns its texture.
+    /// Called on every display refresh. Returns a texture when a frame drawn
+    /// earlier has finished on the GPU, and starts the next frame if mpv has one.
+    /// The CPU never waits for the GPU: a frame shows on the refresh after it
+    /// was drawn (the ring of three keeps it from being overwritten meanwhile).
     func renderIfNeeded(width: Int, height: Int) -> MTLTexture? {
         guard let renderContext, width > 0, height > 0 else { return nil }
+        CGLSetCurrentContext(cgl)
+        var finished = collectFinishedFrame()
+
         let due = pending.withLock { flag -> Bool in
             defer { flag = false }
             return flag
         }
-        guard due else { return nil }
+        guard due else { return finished }
         let flags = mpv_render_context_update(renderContext)
-        guard flags & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue) != 0 else { return nil }
+        guard flags & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue) != 0 else { return finished }
+        // A frame still in flight when the next one is due: finish it now (rare).
+        if inFlight != nil { finished = collectFinishedFrame(wait: true) ?? finished }
 
-        CGLSetCurrentContext(cgl)
         if targets.first.map({ $0.width != width || $0.height != height }) ?? true {
             releaseTargets()
             targets = (0..<3).compactMap { _ in makeTarget(width: width, height: height) }
@@ -122,21 +139,40 @@ final class MPVVideoBridge {
         var fbo = mpv_opengl_fbo(fbo: Int32(target.framebuffer), w: Int32(width), h: Int32(height), internal_format: 0)
         // The FBO already stores rows top-down for Metal; flipping turns the picture over.
         var flip: Int32 = 0
+        // The display link already paces frames; mpv's own wait for the
+        // frame's target time would park the main thread (a third of it at 4K60).
+        var block: Int32 = 0
         withUnsafeMutablePointer(to: &fbo) { fboPointer in
             withUnsafeMutablePointer(to: &flip) { flipPointer in
-                var params = [
-                    mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_FBO, data: UnsafeMutableRawPointer(fboPointer)),
-                    mpv_render_param(type: MPV_RENDER_PARAM_FLIP_Y, data: UnsafeMutableRawPointer(flipPointer)),
-                    mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-                ]
-                _ = mpv_render_context_render(renderContext, &params)
+                withUnsafeMutablePointer(to: &block) { blockPointer in
+                    var params = [
+                        mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_FBO, data: UnsafeMutableRawPointer(fboPointer)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_FLIP_Y, data: UnsafeMutableRawPointer(flipPointer)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME,
+                                         data: UnsafeMutableRawPointer(blockPointer)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
+                    ]
+                    _ = mpv_render_context_render(renderContext, &params)
+                }
             }
         }
-        // Metal samples this surface right after; wait until the GPU finished it.
         if let fence = glFenceSync(GLenum(GL_SYNC_GPU_COMMANDS_COMPLETE), 0) {
-            glClientWaitSync(fence, GLbitfield(GL_SYNC_FLUSH_COMMANDS_BIT), 100_000_000)
-            glDeleteSync(fence)
+            glFlush()
+            inFlight = (target, fence)
         }
+        return finished
+    }
+
+    /// The in-flight frame's texture once the GPU is done with it (or after
+    /// waiting, when `wait` is set); nil while it is still being drawn.
+    private func collectFinishedFrame(wait: Bool = false) -> MTLTexture? {
+        guard let (target, fence) = inFlight else { return nil }
+        let timeout: GLuint64 = wait ? 100_000_000 : 0
+        let status = glClientWaitSync(fence, 0, timeout)
+        guard status == GLenum(GL_ALREADY_SIGNALED) || status == GLenum(GL_CONDITION_SATISFIED)
+                || status == GLenum(GL_WAIT_FAILED) else { return nil }
+        glDeleteSync(fence)
+        inFlight = nil
         return target.metal
     }
 
@@ -171,6 +207,8 @@ final class MPVVideoBridge {
     }
 
     private func releaseTargets() {
+        if let (_, fence) = inFlight { glDeleteSync(fence) }
+        inFlight = nil
         for target in targets {
             var fbo = target.framebuffer, tex = target.glTexture
             glDeleteFramebuffers(1, &fbo)

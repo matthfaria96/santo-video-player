@@ -7,7 +7,7 @@ final class AppSettingsTests: XCTestCase {
 
     func testDefaults() {
         let settings = AppSettings(defaults: defaults())
-        XCTAssertEqual(settings.layout, .modern)
+        XCTAssertEqual(settings.layout, .classic)
         XCTAssertTrue(settings.resumePlayback)
         XCTAssertTrue(settings.hardwareDecoding)
         XCTAssertEqual(settings.skipInterval, 10)
@@ -48,5 +48,19 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings.TrackLanguage.portuguese.mpvList, "pt,por,pob")
         XCTAssertEqual(AppSettings.TrackLanguage.english.mpvList, "en,eng")
         XCTAssertFalse(AppSettings.TrackLanguage.system.mpvList.isEmpty)
+    }
+}
+
+@MainActor
+final class LaunchDefaultsTests: XCTestCase {
+    /// Release defaults: classic layout; subtitles drawn inside the picture
+    /// (original style) without the dark box.
+    func testFirstLaunchDefaults() {
+        let store = UserDefaults(suiteName: "LaunchDefaultsTests-\(UUID().uuidString)")!
+        XCTAssertEqual(AppSettings(defaults: store).layout, .classic)
+        XCTAssertNil(store.object(forKey: "subtitleInside"))
+        let subs = SubtitleController()
+        if UserDefaults.standard.object(forKey: "subtitleInside") == nil { XCTAssertTrue(subs.insideScreen) }
+        if UserDefaults.standard.object(forKey: "subtitleBackground") == nil { XCTAssertFalse(subs.showBackground) }
     }
 }

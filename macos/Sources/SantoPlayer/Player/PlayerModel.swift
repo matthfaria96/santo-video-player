@@ -72,6 +72,13 @@ final class PlayerModel {
     }
     /// True when the sliders differ from the chosen preset's values.
     var crtEdited: Bool { crt != crtPreset.settings }
+    /// "HEVC · hardware (videotoolbox)" or "· software", for the diagnostics overlay.
+    var decoderInfo: String {
+        let codec = (mpv?.string("video-format") ?? mpv?.string("video-codec") ?? "?").uppercased()
+        let hw = mpv?.string("hwdec-current") ?? "no"
+        return hw.isEmpty || hw == "no" ? "\(codec) · software" : "\(codec) · hardware (\(hw))"
+    }
+
     /// Frames mpv dropped or decoded late (for the diagnostics overlay).
     var droppedFrames: Int {
         Int((mpv?.int("frame-drop-count") ?? 0) + (mpv?.int("decoder-frame-drop-count") ?? 0))
@@ -79,6 +86,9 @@ final class PlayerModel {
 
     @ObservationIgnored private var paused = true
     @ObservationIgnored private var eof = false
+    /// Between "loadfile" and FILE_LOADED mpv still reports the previous file's
+    /// time, duration and end; those must not land on the new one.
+    @ObservationIgnored private var loading = false
     @ObservationIgnored private var pendingResume: Double?
     @ObservationIgnored private var lastSaved: Double = 0
     @ObservationIgnored private var osdTask: Task<Void, Never>?
@@ -93,10 +103,10 @@ final class PlayerModel {
         volume = defaults.object(forKey: "volume") as? Float ?? 1
         loopMode = LoopMode(rawValue: defaults.integer(forKey: "loop")) ?? .off
         let storedCRT = defaults.data(forKey: "crt").flatMap { try? JSONDecoder().decode(CRTSettings.self, from: $0) }
-            ?? CRTPreset.trinitron.settings
+            ?? CRTPreset.cabinet.settings
         crt = storedCRT
         crtPreset = defaults.string(forKey: "crtPreset").flatMap(CRTPreset.init(rawValue:))
-            ?? CRTPreset.matching(storedCRT) ?? .trinitron
+            ?? CRTPreset.matching(storedCRT) ?? .cabinet
         renderer = try? CRTRenderer()
         renderer?.settings = storedCRT
         do {
@@ -123,10 +133,23 @@ final class PlayerModel {
         "input-default-bindings": "no",
         "input-vo-keyboard": "no",
         "osc": "no",
+        // mpv's own UI scripts (stats, console, menus…) are unused here: don't spawn them.
+        "load-scripts": "no",
+        "load-stats-overlay": "no",
+        "load-osd-console": "no",
+        "load-auto-profiles": "no",
+        "load-select": "no",
+        "load-positioning": "no",
+        "load-commands": "no",
+        "load-context-menu": "no",
         "ytdl": "no",
         "volume-max": "100",
         "audio-pitch-correction": "yes",
         "hr-seek": "yes",
+        // Read-ahead sized for local files and normal streams (mpv defaults to
+        // ~200 MB, meant for slow networks).
+        "demuxer-max-bytes": "96MiB",
+        "demuxer-max-back-bytes": "24MiB",
         "terminal": "no",
     ]
 
@@ -184,6 +207,7 @@ final class PlayerModel {
     }
 
     private func propertyChanged(_ name: String, _ value: MPVValue) {
+        if loading, ["time-pos", "duration", "eof-reached"].contains(name) { return }
         switch (name, value) {
         case ("time-pos", .double(let t)):
             if !isScrubbing, abs(t - currentTime) >= 0.1 { currentTime = t }
@@ -211,6 +235,8 @@ final class PlayerModel {
     private func event(_ event: mpv_event_id, reason: mpv_end_file_reason?) {
         switch event {
         case MPV_EVENT_FILE_LOADED:
+            loading = false
+            if let d = mpv?.double("duration"), d.isFinite { duration = d }
             mpv?.set("speed", Double(rate))
             if let resume = pendingResume {
                 mpv?.command("seek", String(resume), "absolute+exact")
@@ -238,6 +264,7 @@ final class PlayerModel {
         case MPV_EVENT_PLAYBACK_RESTART:
             onStateChange?()            // seeks, frame steps and loops: resync external clocks
         case MPV_EVENT_END_FILE where reason == MPV_END_FILE_REASON_ERROR:
+            loading = false
             let ext = currentURL?.pathExtension.uppercased() ?? ""
             flash(String(localized: "Não foi possível reproduzir este arquivo \(ext)."),
                   symbol: "exclamationmark.triangle", seconds: 4)
@@ -309,6 +336,10 @@ final class PlayerModel {
             return flash(String(localized: "Nenhum vídeo encontrado aqui"), symbol: "questionmark.folder")
         }
         if !media.isEmpty {
+            // Save the video that is playing while it is still the current one;
+            // replacing the playlist first wrote its position into the new file.
+            saveProgress(force: true)
+            index = -1
             playlist = media
             load(at: 0)
         }
@@ -367,6 +398,7 @@ final class PlayerModel {
         pendingResume = AppSettings.shared.resumePlayback && trackable ? library.resumePosition(for: url) : nil
         lastSaved = 0
         applySettings()
+        loading = true
         mpv?.command("loadfile", url.isFileURL ? url.path : url.absoluteString, "replace")
         mpv?.set("pause", false)
         paused = false

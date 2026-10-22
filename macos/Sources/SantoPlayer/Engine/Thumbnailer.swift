@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -16,6 +17,8 @@ final class Thumbnailer: @unchecked Sendable {
     private var handle: OpaquePointer?
     private var renderContext: OpaquePointer?
     private var loadedPath: String?
+    /// Bumped on each capture; an idle timer unloads the file once it settles.
+    private var activity = 0
 
     private init() { cache.countLimit = 400 }
 
@@ -32,6 +35,7 @@ final class Thumbnailer: @unchecked Sendable {
                 let image = self.capture(url: url, seconds: seconds, width: width)
                 if let image { self.cache.setObject(image, forKey: key) }
                 continuation.resume(returning: image)
+                self.scheduleUnload()
             }
         }
     }
@@ -48,6 +52,18 @@ final class Thumbnailer: @unchecked Sendable {
     }
 
     // MARK: mpv (queue only)
+
+    /// After 20 s without requests, close the file so its demuxer and decoder
+    /// buffers are freed (the next request reopens it).
+    private func scheduleUnload() {
+        activity += 1
+        let mark = activity
+        queue.asyncAfter(deadline: .now() + 20) {
+            guard self.activity == mark, self.loadedPath != nil else { return }
+            self.command(["stop"])
+            self.loadedPath = nil
+        }
+    }
 
     private func ensureMPV() -> Bool {
         if handle != nil { return renderContext != nil }
@@ -162,6 +178,19 @@ enum ArtworkCache {
         let folder = base.appendingPathComponent("com.witchmymac.santovideoplayer/artwork", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
+    }
+
+    nonisolated(unsafe) private static let memory = NSCache<NSString, NSImage>()
+
+    /// Decoded cover, kept in memory so redraws of the home screen don't hit the disk.
+    /// `version` changes whenever a cover is rewritten.
+    @MainActor
+    static func image(for media: URL, version: Int) -> NSImage? {
+        let key = "\(media.path)#\(version)" as NSString
+        if let cached = memory.object(forKey: key) { return cached }
+        guard let image = NSImage(contentsOf: url(for: media)) else { return nil }
+        memory.setObject(image, forKey: key)
+        return image
     }
 
     static func url(for media: URL) -> URL {

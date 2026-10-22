@@ -100,8 +100,8 @@ struct EffectsPanel: View {
             if let renderer = model.renderer, !model.isAudioOnly, renderer.texture != nil {
                 var images: [CRTPreset: CGImage] = [:]
                 for preset in CRTPreset.allCases {
-                    images[preset] = renderer.renderImage(size: CGSize(width: 512, height: 288), pixelScale: 2,
-                                                          settings: preset.settings)
+                    images[preset] = await renderer.renderImageAsync(size: CGSize(width: 512, height: 288),
+                                                                     settings: preset.settings)
                 }
                 previews = images
             } else {
