@@ -20,6 +20,24 @@ struct PlaybackSettingsView: View {
                 }
             }
 
+            SettingsSection(title: "Vídeo retrô",
+                            footer: "Pensado para DVDs, gravações de TV e animações antigas.") {
+                SettingsRow(title: "Desentrelaçar vídeos de TV e DVD",
+                            detail: "Remove o efeito de pente nas cenas com movimento (480i/576i).") {
+                    Toggle("", isOn: $settings.deinterlace).settingsSwitch()
+                }
+                SettingsSeparator()
+                SettingsRow(title: "Scanlines na resolução original",
+                            detail: "Em vídeos SD, uma linha do tubo para cada linha do vídeo.") {
+                    Toggle("", isOn: $settings.nativeScanlines).settingsSwitch()
+                }
+                SettingsSeparator()
+                SettingsRow(title: "TV com Gabinete automática no 4:3",
+                            detail: "Vídeos 4:3 ganham a TV inteira; widescreen fica com o efeito escolhido.") {
+                    Toggle("", isOn: $settings.autoCabinet).settingsSwitch()
+                }
+            }
+
             SettingsSection(title: "Áudio") {
                 SettingsRow(title: "Idioma preferido do áudio",
                             detail: "Escolhido automaticamente em arquivos com várias faixas.") {

@@ -26,6 +26,10 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
 
     var settings = CRTSettings() { didSet { needsRedraw = true } }
     var fill = false { didSet { needsRedraw = true } }
+    /// Ajustes: scanlines at the source's own line count (SD video).
+    var nativeScanlines = true { didSet { needsRedraw = true } }
+    /// Ajustes: 4:3 videos automatically get the full "TV com Gabinete".
+    var autoCabinet = false { didSet { needsRedraw = true } }
     /// Display size (accounts for anamorphic pixels); falls back to the frame size.
     var displaySize: CGSize = .zero { didSet { needsRedraw = true } }
 
@@ -161,10 +165,13 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         pass.colorAttachments[0].loadAction = .clear
         guard let encoder = buffer.makeRenderCommandEncoder(descriptor: pass) else { return }
         if let tex = source ?? texture {
-            let layout = overrideRect.map { ($0, $0, false) } ?? screenLayout(for: tex, viewport: viewport, settings: override ?? settings)
+            let video = videoSize(for: tex)
+            let effective = (override ?? settings).adapted(toVideo: video, autoCabinet: autoCabinet)
+            let layout = overrideRect.map { ($0, $0, false) } ?? screenLayout(for: tex, viewport: viewport, settings: effective)
             let rect = layout.0
-            var uniforms = CRTUniforms(settings: override ?? settings, viewport: viewport, videoRect: rect,
+            var uniforms = CRTUniforms(settings: effective, viewport: viewport, videoRect: rect,
                                        contentRect: layout.1, panels: layout.2,
+                                       sourceHeight: nativeScanlines ? video.height : nil,
                                        time: CACurrentMediaTime() - startTime, pixelScale: pixelScale)
             encoder.setRenderPipelineState(pipeline)
             encoder.setFragmentTexture(tex, index: 0)

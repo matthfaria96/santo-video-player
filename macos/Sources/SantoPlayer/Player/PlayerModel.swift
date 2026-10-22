@@ -126,7 +126,8 @@ final class PlayerModel {
     private func observeSettings() {
         withObservationTracking {
             let settings = AppSettings.shared
-            _ = (settings.hardwareDecoding, settings.subtitleLanguage, settings.audioLanguage)
+            _ = (settings.hardwareDecoding, settings.subtitleLanguage, settings.audioLanguage,
+                 settings.deinterlace, settings.nativeScanlines, settings.autoCabinet)
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.applySettings()
@@ -141,6 +142,10 @@ final class PlayerModel {
         mpv?.set("hwdec", settings.hardwareDecoding ? "auto-safe" : "no")
         mpv?.set("slang", settings.subtitleLanguage.mpvList)
         mpv?.set("alang", settings.audioLanguage.mpvList)
+        // "auto": only frames flagged as interlaced (DVD, TV recordings) are deinterlaced.
+        mpv?.set("deinterlace", settings.deinterlace ? "auto" : "no")
+        renderer?.nativeScanlines = settings.nativeScanlines
+        renderer?.autoCabinet = settings.autoCabinet
     }
 
     func shutdown() {

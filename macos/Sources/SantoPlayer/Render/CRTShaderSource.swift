@@ -217,13 +217,14 @@ static float3 screenGlow(texture2d<float> video, constant Uniforms &u, float2 tu
     float2 e = clamp(tuv, 0.03, 0.97);
     float2 px = u.pixelScale / u.contentSize;
     float3 acc = float3(0.0);
-    for (int i = -2; i <= 2; i++) {
-        for (int j = -2; j <= 2; j++) {
-            float2 t = clamp(e + float2(i, j) * 0.045, 0.0, 1.0);
+    // 3×3 wide taps: the glow is so diffuse that 9 samples match 25.
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            float2 t = clamp(e + float2(i, j) * 0.07, 0.0, 1.0);
             acc += sampleContent(video, smp, contentUV(u, t), px);
         }
     }
-    acc /= 25.0;
+    acc /= 9.0;
     return acc * acc * 0.3 * fall;                                // squared: only real light carries
 }
 
@@ -393,6 +394,8 @@ fragment float4 crt_fragment(VOut in [[stage_in]],
     }
 
     if (u.frame > 0.5) {
+        // The cabinet is invisible behind the glass: only shade it where it shows.
+        if (inside >= 1.0) return float4(screen, 1.0);
         float3 cab = cabinetColor(video, u, frag, sd, tuv, minHalf);
         return float4(mix(cab, screen, inside), 1.0);
     }

@@ -24,8 +24,9 @@ struct CRTUniforms {
     var frame: Float
 
     /// `videoRect` is the glass; `contentRect` the picture inside it (defaults to the same).
+    /// `sourceHeight` (the video's own line count) enables native scanlines.
     init(settings s: CRTSettings, viewport: CGSize, videoRect: CGRect, contentRect: CGRect? = nil,
-         panels: Bool = false, time: Double, pixelScale: CGFloat) {
+         panels: Bool = false, sourceHeight: CGFloat? = nil, time: Double, pixelScale: CGFloat) {
         self.viewport = SIMD2(Float(viewport.width), Float(viewport.height))
         rectOrigin = SIMD2(Float(videoRect.minX), Float(videoRect.minY))
         rectSize = SIMD2(Float(max(videoRect.width, 1)), Float(max(videoRect.height, 1)))
@@ -44,6 +45,11 @@ struct CRTUniforms {
         brightness = s.brightness
         tube = s.tube ? 1 : 0
         lines = Self.scanlineCount(rectHeightPixels: videoRect.height, pixelScale: pixelScale)
+        if let sourceHeight, let native = Self.nativeScanlineCount(sourceHeight: sourceHeight,
+                                                                   contentHeightPixels: content.height,
+                                                                   glassHeightPixels: videoRect.height) {
+            lines = native
+        }
         self.pixelScale = Float(max(pixelScale, 1))
         frame = s.frame ? (panels ? 2 : 1) : 0
     }
@@ -73,6 +79,20 @@ struct CRTUniforms {
         let gapY = (inner.height - fit.height) / max(inner.height, 1)
         if max(gapX, gapY) < 0.12 { return (fit, fit, false) }
         return (inner, fit, false)
+    }
+
+    /// Scanlines that match the video's own lines, like a real set: an SD
+    /// picture (≤ 576 lines) shows one beam line per video line, or one per
+    /// field (half) when the screen is too small to draw them 3 px apart.
+    /// HD sources return nil and keep the window-based density.
+    /// Counted over the glass, which can be taller than a letterboxed picture.
+    static func nativeScanlineCount(sourceHeight: CGFloat, contentHeightPixels: CGFloat,
+                                    glassHeightPixels: CGFloat) -> Float? {
+        guard sourceHeight >= 144, sourceHeight <= 576, contentHeightPixels > 0 else { return nil }
+        var perPicture = sourceHeight
+        if contentHeightPixels / perPicture < 3 { perPicture /= 2 }
+        if contentHeightPixels / perPicture < 3 { return nil }
+        return Float(perPicture * glassHeightPixels / contentHeightPixels)
     }
 
     /// Aspect-fit (or aspect-fill) rectangle of the video inside the viewport.

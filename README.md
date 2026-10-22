@@ -40,6 +40,10 @@ com H.264, HEVC, AV1, VP9, MPEG-4, áudio AAC/AC3/DTS/Opus/FLAC etc.
   por hardware), **Legendas** (idioma preferido, legenda ao lado do vídeo,
   aparência com amostra ao vivo) e **Sobre** (versão, licença, licenças de
   código aberto, witchmymac.com).
+- **Vídeo retrô** (Ajustes → Reprodução): desentrelaçamento automático de
+  DVD e gravações de TV (480i/576i), scanlines na resolução original do vídeo
+  SD (uma linha do tubo por linha do vídeo, ou por campo em telas menores) e
+  "TV com Gabinete" automática para vídeos 4:3.
 - **Faixas de áudio** (menu na barra, B alterna) e **legendas** embutidas ou
   em arquivo (`.srt`, `.ass`, `.vtt`, `.sub`, `.sup`…). Arquivos ao lado do vídeo
   com o mesmo nome carregam e ativam sozinhos; o encoding é detectado. Legenda
@@ -60,7 +64,8 @@ com H.264, HEVC, AV1, VP9, MPEG-4, áudio AAC/AC3/DTS/Opus/FLAC etc.
 - Português e inglês (`Support/Localizations`; `scripts/extract-strings.py`
   lista as chaves a traduzir).
 - Diagnóstico (⌥⌘I): fps, desenhos/s, tempo de GPU, frames perdidos.
-  `SantoPlayer --bench imagem.png` mede o shader;
+  `SantoPlayer --bench imagem.png` mede o shader (no M4, em 4K: ~2 ms com o
+  gabinete, ~2,2 ms com o TV de Tubo);
   `SantoPlayer --render-check imagem.png pasta/` renderiza todos os presets.
 
 ## Efeito CRT

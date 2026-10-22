@@ -35,6 +35,17 @@ struct CRTSettings: Codable, Equatable {
 
     static let off = CRTSettings(enabled: false)
 
+    /// What actually gets drawn for a video of this shape: with the automatic
+    /// cabinet on, any CRT preset puts a 4:3-ish picture in the full set.
+    func adapted(toVideo video: CGSize, autoCabinet: Bool) -> CRTSettings {
+        guard autoCabinet, enabled, video.height > 0, video.width / video.height < 1.55 else { return self }
+        var s = self
+        s.frame = true
+        s.tube = true
+        s.curvature = max(s.curvature, 0.35)
+        return s
+    }
+
     private enum CodingKeys: String, CodingKey {
         case enabled, scanlines, mask, maskType, curvature, glow, vignette, noise, brightness, tube, frame
     }

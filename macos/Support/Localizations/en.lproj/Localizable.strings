@@ -201,3 +201,11 @@
 "A TV inteira em volta da tela" = "The whole TV set around the screen";
 "Moldura completa" = "Full frame";
 "Gabinete inteiro no 4:3, borda fina no 16:9" = "Whole cabinet for 4:3, thin bezel for 16:9";
+"Vídeo retrô" = "Retro Video";
+"Pensado para DVDs, gravações de TV e animações antigas." = "Made for DVDs, TV recordings and old animation.";
+"Desentrelaçar vídeos de TV e DVD" = "Deinterlace TV and DVD video";
+"Remove o efeito de pente nas cenas com movimento (480i/576i)." = "Removes combing in moving scenes (480i/576i).";
+"Scanlines na resolução original" = "Scanlines at native resolution";
+"Em vídeos SD, uma linha do tubo para cada linha do vídeo." = "For SD video, one tube line per video line.";
+"TV com Gabinete automática no 4:3" = "Automatic Cabinet TV for 4:3";
+"Vídeos 4:3 ganham a TV inteira; widescreen fica com o efeito escolhido." = "4:3 videos get the whole TV; widescreen keeps the chosen effect.";

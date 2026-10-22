@@ -73,6 +73,9 @@ final class AppSettings {
     var subtitleLanguage: TrackLanguage { didSet { save(subtitleLanguage.rawValue, "subtitleLanguage") } }
     var audioLanguage: TrackLanguage { didSet { save(audioLanguage.rawValue, "audioLanguage") } }
     var autoSidecarSubtitles: Bool { didSet { save(autoSidecarSubtitles, "autoSidecarSubtitles") } }
+    var deinterlace: Bool { didSet { save(deinterlace, "deinterlace") } }
+    var nativeScanlines: Bool { didSet { save(nativeScanlines, "nativeScanlines") } }
+    var autoCabinet: Bool { didSet { save(autoCabinet, "autoCabinet") } }
     var language: Language {
         didSet {
             save(language.rawValue, "appLanguage")
@@ -99,6 +102,9 @@ final class AppSettings {
         subtitleLanguage = TrackLanguage(rawValue: defaults.string(forKey: "subtitleLanguage") ?? "") ?? .system
         audioLanguage = TrackLanguage(rawValue: defaults.string(forKey: "audioLanguage") ?? "") ?? .system
         autoSidecarSubtitles = defaults.object(forKey: "autoSidecarSubtitles") as? Bool ?? true
+        deinterlace = defaults.object(forKey: "deinterlace") as? Bool ?? true
+        nativeScanlines = defaults.object(forKey: "nativeScanlines") as? Bool ?? true
+        autoCabinet = defaults.object(forKey: "autoCabinet") as? Bool ?? false
         let lang = Language(rawValue: defaults.string(forKey: "appLanguage") ?? "") ?? .system
         language = lang
         launchLanguage = lang
