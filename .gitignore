@@ -18,3 +18,8 @@ SantoVideoPlayer.ini
 # Python
 __pycache__/
 *.pyc
+macos/.build/
+macos/build/
+
+# macOS
+.DS_Store

@@ -61,43 +61,62 @@ static const wchar_t kGlyphMute[]    = L"\uE74F";
 static const wchar_t kGlyphFull[]    = L"\uE740";
 static const wchar_t kGlyphRestore[] = L"\uE73F";
 static const wchar_t kGlyphFx[]      = L"\uE790";
+static const wchar_t kGlyphSub[]     = L"\uE7F0";
 
 // ---------------------------------------------------------------------------
 // Config de shader + presets
 // ---------------------------------------------------------------------------
 struct ShaderConfig {
     bool   enabled = true;
-    double scanline_strength = 0.7;
+    double scanline_strength = 0.55;
     double mask_strength     = 0.3;
     double scanline_period   = 2.0;
-    double gamma_in          = 2.0;
-    double gamma_out         = 1.8;
-    double bright_boost      = 1.2;
+    double gamma_in          = 2.2;
+    double gamma_out         = 2.2;
+    double bright_boost      = 1.15;
     double curvature         = 0.0;
+    double glow              = 0.3;
+    double vignette          = 0.25;
+    double noise             = 0.0;
+    double tube              = 0.0;
+    double mask_type         = 0.0;   // 0 grade, 1 slot, 2 pontos
 };
 
+// Mesmos presets do player macOS (o shader é o mesmo modelo de tubo).
 struct Preset {
     const wchar_t* name;
     bool   enabled;
-    double scanline;
-    double mask;
-    double period;
-    double curvature;
+    double scanline, mask, period, curvature, glow, vignette, noise, bright, tube, maskType;
 };
 static const Preset kPresets[] = {
-    { L"Sem shader",             false, 0.0, 0.0, 2.0, 0.0 },
-    { L"CRT Clássico (padrão)",  true,  0.7, 0.3, 2.0, 0.0 },
-    { L"CRT Suave",              true,  0.4, 0.2, 2.0, 0.0 },
-    { L"CRT Forte",              true,  0.9, 0.6, 3.0, 0.0 },
-    { L"Só scanlines",           true,  0.7, 0.0, 2.0, 0.0 },
-    { L"CRT Tubo (curvo)",       true,  0.7, 0.3, 2.0, 1.0 },
+    { L"Sem efeito",                  false, 0.0,  0.0,  2.0, 0.0,  0.0,  0.0,  0.0,  1.0,  0.0, 0.0 },
+    { L"CRT Clássico",                true,  0.55, 0.3,  2.0, 0.0,  0.3,  0.25, 0.0,  1.15, 0.0, 0.0 },
+    { L"CRT Suave",                   true,  0.3,  0.15, 2.0, 0.0,  0.2,  0.15, 0.0,  1.05, 0.0, 0.0 },
+    { L"Arcade",                      true,  0.85, 0.45, 3.0, 0.0,  0.55, 0.3,  0.0,  1.35, 0.0, 0.0 },
+    { L"TV de Tubo (vidro, moldura)", true,  0.55, 0.35, 2.0, 0.5,  0.45, 0.45, 0.05, 1.25, 1.0, 0.0 },
+    { L"TV Antiga",                   true,  0.6,  0.4,  2.0, 0.85, 0.4,  0.7,  0.35, 1.12, 1.0, 1.0 },
+    { L"Monitor PVM",                 true,  0.75, 0.3,  2.0, 0.0,  0.15, 0.05, 0.0,  1.25, 0.0, 2.0 },
 };
-static const int kPresetCount = 6;
+static const int kPresetCount = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
+
+static void applyPresetValues(ShaderConfig& c, const Preset& p) {
+    c.enabled = p.enabled;
+    c.scanline_strength = p.scanline;
+    c.mask_strength = p.mask;
+    c.scanline_period = p.period;
+    c.curvature = p.curvature;
+    c.glow = p.glow;
+    c.vignette = p.vignette;
+    c.noise = p.noise;
+    c.bright_boost = p.bright;
+    c.tube = p.tube;
+    c.mask_type = p.maskType;
+}
 
 // ---------------------------------------------------------------------------
 // Estado global
 // ---------------------------------------------------------------------------
-enum Btn { B_OPEN, B_PREV, B_PLAY, B_STOP, B_NEXT, B_MUTE, B_FX, B_FULL, B_COUNT };
+enum Btn { B_OPEN, B_PREV, B_PLAY, B_STOP, B_NEXT, B_MUTE, B_RATE, B_SUB, B_FX, B_FULL, B_COUNT };
 
 struct App {
     HWND hMain  = nullptr;
@@ -135,6 +154,7 @@ struct App {
     bool fxDragScan      = false;
     bool fxDragMask      = false;
 
+    long long subDelayUs = 0;
     int  volume = 100;
     bool muted  = false;
     float rate  = 1.0f;
@@ -157,6 +177,10 @@ struct App {
 };
 static App g;
 
+// Painel de efeitos: 7 presets + 2 sliders.
+static const int kFxW = 300;
+static const int kFxH = 44 + kPresetCount * 42 + 6 + 88 + 12;
+
 static void layout();
 static void showOsd(const std::wstring& text);
 
@@ -169,6 +193,15 @@ static std::string w2a(const std::wstring& w) {
     WideCharToMultiByte(CP_UTF8, 0, w.c_str(), -1, &s[0], n, nullptr, nullptr);
     if (!s.empty() && s.back() == '\0') s.pop_back();
     return s;
+}
+
+static std::wstring a2w(const char* a) {
+    if (!a || !*a) return L"";
+    int n = MultiByteToWideChar(CP_UTF8, 0, a, -1, nullptr, 0);
+    std::wstring w((size_t)n, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, a, -1, &w[0], n);
+    if (!w.empty() && w.back() == L'\0') w.pop_back();
+    return w;
 }
 
 static double clampd(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -237,12 +270,7 @@ static void loadSettings() {
     GetPrivateProfileStringW(L"player", L"lastdir", L"", dir, MAX_PATH, ini.c_str());
     g.lastDir = dir;
     g.loopMode = clampi((int)GetPrivateProfileIntW(L"player", L"loop", 0, ini.c_str()), 0, 2);
-    const Preset& p = kPresets[g.presetIndex];
-    g.cfg.enabled = p.enabled;
-    g.cfg.scanline_strength = p.scanline;
-    g.cfg.mask_strength = p.mask;
-    g.cfg.scanline_period = p.period;
-    g.cfg.curvature = p.curvature;
+    applyPresetValues(g.cfg, kPresets[g.presetIndex]);
 }
 
 static void saveSettings() {
@@ -293,6 +321,16 @@ static std::vector<const char*> buildVlcArgs(std::vector<std::string>& store) {
         std::snprintf(buf, sizeof buf, "--crt-bright-boost=%.2f", g.cfg.bright_boost);
         store.push_back(buf);
         std::snprintf(buf, sizeof buf, "--crt-curvature=%.2f", g.cfg.curvature);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-glow=%.2f", g.cfg.glow);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-vignette=%.2f", g.cfg.vignette);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-noise=%.2f", g.cfg.noise);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-tube=%.0f", g.cfg.tube);
+        store.push_back(buf);
+        std::snprintf(buf, sizeof buf, "--crt-mask-type=%.0f", g.cfg.mask_type);
         store.push_back(buf);
     }
     std::vector<const char*> args;
@@ -359,6 +397,7 @@ static void startPlayback(const std::wstring& path) {
     libvlc_audio_set_volume(g.mp, g.volume);
     libvlc_audio_set_mute(g.mp, g.muted ? 1 : 0);
     if (g.rate != 1.0f) libvlc_media_player_set_rate(g.mp, g.rate);
+    if (g.subDelayUs != 0) libvlc_video_set_spu_delay(g.mp, g.subDelayUs);
     loadSubtitles(path);
     libvlc_media_player_play(g.mp);
     g.playing = true;
@@ -382,6 +421,7 @@ static void playOne(const std::wstring& path) {
     if (!g.inst) return;
     g.file = path;
     g.aspectIdx = 0;   // proporção volta ao padrão ao abrir arquivo novo
+    g.subDelayUs = 0;
     startPlayback(path);
     updateTitle();
     const wchar_t* base = wcsrchr(path.c_str(), L'\\');
@@ -517,6 +557,70 @@ static void cycleRate(bool up) {
     setRate(rates[idx]);
 }
 
+// Botão de velocidade: avança pelos valores e volta ao 0,5x depois do 3x.
+static void rateButton() {
+    static const float rates[] = { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f };
+    for (float r : rates)
+        if (r > g.rate + 0.001f) { setRate(r); return; }
+    setRate(rates[0]);
+}
+
+// ---------------------------------------------------------------------------
+// Legendas: faixas (embutidas + arquivos), carregar arquivo, atraso
+// ---------------------------------------------------------------------------
+static void cycleSubtitle() {
+    if (!g.mp) return;
+    libvlc_media_tracklist_t* tl = libvlc_media_player_get_tracklist(g.mp, libvlc_track_text, false);
+    size_t n = tl ? libvlc_media_tracklist_count(tl) : 0;
+    if (n == 0) {
+        if (tl) libvlc_media_tracklist_delete(tl);
+        showOsd(L"Sem legendas");
+        return;
+    }
+    size_t selected = n;  // n = desligada
+    for (size_t i = 0; i < n; ++i)
+        if (libvlc_media_tracklist_at(tl, i)->selected) { selected = i; break; }
+    size_t next = (selected == n) ? 0 : selected + 1;
+    if (next >= n) {
+        libvlc_media_player_unselect_track_type(g.mp, libvlc_track_text);
+        showOsd(L"Legenda desligada");
+    } else {
+        libvlc_media_track_t* t = libvlc_media_tracklist_at(tl, next);
+        libvlc_media_player_select_track(g.mp, t);
+        std::wstring name = a2w(t->psz_name);
+        if (name.empty()) name = a2w(t->psz_language);
+        if (name.empty()) name = L"faixa " + std::to_wstring(next + 1);
+        showOsd(L"Legenda: " + name);
+    }
+    libvlc_media_tracklist_delete(tl);
+}
+
+static void openSubtitleFile() {
+    if (!g.mp) { showOsd(L"Abra um vídeo primeiro"); return; }
+    wchar_t file[MAX_PATH] = {0};
+    OPENFILENAMEW ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g.hMain;
+    ofn.lpstrFilter = L"Legendas\0*.srt;*.vtt;*.ass;*.ssa;*.sub\0Todos os arquivos\0*.*\0";
+    ofn.lpstrFile = file;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+    if (!GetOpenFileNameW(&ofn)) return;
+    std::string uri = pathToFileUri(file);
+    if (libvlc_media_player_add_slave(g.mp, libvlc_media_slave_type_subtitle, uri.c_str(), true) == 0)
+        showOsd(L"Legenda carregada");
+    else
+        showOsd(L"Falha ao carregar a legenda");
+}
+
+static void shiftSubtitle(long long deltaUs) {
+    g.subDelayUs += deltaUs;
+    if (g.mp) libvlc_video_set_spu_delay(g.mp, g.subDelayUs);
+    wchar_t buf[48];
+    swprintf(buf, 48, L"Atraso da legenda: %+.1f s", g.subDelayUs / 1000000.0);
+    showOsd(buf);
+}
+
 // ---------------------------------------------------------------------------
 // OSD (feedback sobre o vídeo)
 // ---------------------------------------------------------------------------
@@ -637,12 +741,7 @@ static void recreateInstance() {
 
 static void applyPreset(int idx) {
     g.presetIndex = idx;
-    const Preset& p = kPresets[idx];
-    g.cfg.enabled = p.enabled;
-    g.cfg.scanline_strength = p.scanline;
-    g.cfg.mask_strength = p.mask;
-    g.cfg.scanline_period = p.period;
-    g.cfg.curvature = p.curvature;
+    applyPresetValues(g.cfg, kPresets[idx]);
     if (!g.file.empty()) recreateInstance();
     if (g.hFx) InvalidateRect(g.hFx, nullptr, FALSE);
 }
@@ -736,9 +835,12 @@ static void layout() {
     x += 118;
     g.btn[B_FULL] = { w - pad - 40, y, w - pad, y + bh };
     g.btn[B_FX]   = { w - pad - 40 - 44, y, w - pad - 44, y + bh };
+    g.btn[B_SUB]  = { w - pad - 40 - 88, y, w - pad - 88, y + bh };
+    int rateRight = w - pad - 128 - 4;
+    g.btn[B_RATE] = { (rateRight - 54 > x) ? rateRight - 54 : x, y, rateRight, y + bh };
 
     if (g.hFx && g.fxOpen) {
-        MoveWindow(g.hFx, 12, 12, 300, 352, TRUE);
+        MoveWindow(g.hFx, 12, 12, kFxW, kFxH, TRUE);
         SetWindowPos(g.hFx, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
     }
 }
@@ -814,6 +916,21 @@ static void PaintApp(HDC dc) {
     drawButton(dc, g.btn[B_MUTE], g.muted ? kGlyphMute : kGlyphVol,
                g.hover == B_MUTE, false);
     drawButton(dc, g.btn[B_FX],   kGlyphFx,   g.hover == B_FX || g.fxOpen, false);
+    drawButton(dc, g.btn[B_SUB],  kGlyphSub,  g.hover == B_SUB, false);
+    {
+        // botão de velocidade: texto ("1x", "1.5x") em vez de ícone
+        bool fast = g.rate > 1.001f || g.rate < 0.999f;
+        RECT r = g.btn[B_RATE];
+        HBRUSH bg = CreateSolidBrush(fast ? kAccent : (g.hover == B_RATE ? kBtnHov : kBtnBg));
+        HPEN pen = CreatePen(PS_SOLID, 1, fast ? kAccent : kTrack);
+        HGDIOBJ ob2 = SelectObject(dc, bg), op2 = SelectObject(dc, pen);
+        RoundRect(dc, r.left, r.top, r.right, r.bottom, 14, 14);
+        SelectObject(dc, ob2); SelectObject(dc, op2);
+        DeleteObject(bg); DeleteObject(pen);
+        SetTextColor(dc, fast ? RGB(0x1a, 0x1a, 0x1a) : kText);
+        std::wstring rt = fmtRate(g.rate);
+        DrawTextW(dc, rt.c_str(), -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
     drawButton(dc, g.btn[B_FULL], g.fullscreen ? kGlyphRestore : kGlyphFull,
                g.hover == B_FULL, false);
 
@@ -824,7 +941,6 @@ static void PaintApp(HDC dc) {
 // ---------------------------------------------------------------------------
 // Painel de efeitos CRT
 // ---------------------------------------------------------------------------
-static const int kFxW = 300, kFxH = 352;
 
 struct FxLayout {
     RECT presets[kPresetCount];
@@ -1037,6 +1153,8 @@ static void onButton(int i) {
     case B_STOP: stop(); break;
     case B_NEXT: nextTrack(); break;
     case B_MUTE: toggleMute(); break;
+    case B_RATE: rateButton(); break;
+    case B_SUB:  cycleSubtitle(); break;
     case B_FX:
         g.fxOpen = !g.fxOpen;
         ShowWindow(g.hFx, g.fxOpen ? SW_SHOW : SW_HIDE);
@@ -1065,7 +1183,13 @@ static void onKey(WPARAM vk) {
     case 'S':        stop(); break;
     case 'P':        prevTrack(); break;
     case 'N':        nextTrack(); break;
-    case 'O':        if (ctrl) openFile(); break;
+    case 'O':
+        if (ctrl && (GetKeyState(VK_SHIFT) & 0x8000)) openSubtitleFile();
+        else if (ctrl) openFile();
+        break;
+    case 'V':        cycleSubtitle(); break;
+    case 'G':        shiftSubtitle(-100000); break;
+    case 'H':        shiftSubtitle(100000); break;
     case 'E':        if (ctrl) onButton(B_FX); break;
     case 'L':        cycleLoop(); break;
     case 'C':        takeSnapshot(); break;
