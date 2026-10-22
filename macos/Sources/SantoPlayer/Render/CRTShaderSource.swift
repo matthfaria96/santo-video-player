@@ -106,6 +106,14 @@ static float3 screenColor(texture2d<float> video, constant Uniforms &u,
     constexpr sampler smp(filter::linear, address::clamp_to_edge);
     float tube = u.tube;
 
+    // Analog instability (noisy presets): each beam line lands a hair off,
+    // drifting over time like a weak antenna signal.
+    if (u.noise > 0.001) {
+        float line = floor(tuv.y * u.lines);
+        float wobble = hash12(float2(line, floor(u.time * 24.0))) - 0.5;
+        float slow = sin(tuv.y * 9.0 + u.time * 0.7) * 0.5;
+        tuv.x += (wobble * 0.6 + slow) * u.noise * 1.4 * u.pixelScale / u.rectSize.x;
+    }
     float2 cuv = contentUV(u, tuv);
     float2 px = u.pixelScale / u.contentSize;
     float conv = (0.35 + tube * (0.3 + 1.1 * dot(p, p))) * u.pixelScale / u.contentSize.x;
@@ -129,6 +137,23 @@ static float3 screenColor(texture2d<float> video, constant Uniforms &u,
         col += halo * u.glow * (0.25 + 0.6 * luma(halo));
     }
 
+    // Halation: light scattered inside the thick front glass spreads a wide,
+    // faint halo around bright areas — the "light coming off the screen".
+    if (tube > 0.5 && u.glow > 0.001) {
+        float r = 0.035;
+        float2 a = float2(r, r * u.contentSize.x / u.contentSize.y);
+        float3 h = toLinear(sampleContent(video, smp, cuv + float2( a.x, 0.0), px))
+                 + toLinear(sampleContent(video, smp, cuv + float2(-a.x, 0.0), px))
+                 + toLinear(sampleContent(video, smp, cuv + float2(0.0,  a.y), px))
+                 + toLinear(sampleContent(video, smp, cuv + float2(0.0, -a.y), px))
+                 + toLinear(sampleContent(video, smp, cuv + a * 0.7, px))
+                 + toLinear(sampleContent(video, smp, cuv - a * 0.7, px))
+                 + toLinear(sampleContent(video, smp, cuv + float2(a.x, -a.y) * 0.7, px))
+                 + toLinear(sampleContent(video, smp, cuv + float2(-a.x, a.y) * 0.7, px));
+        h /= 8.0;
+        col += h * h * u.glow * 0.35;
+    }
+
     if (u.scanlines > 0.001) {
         float l = saturate(luma(col));
         float f = fract(tuv.y * u.lines) - 0.5;
@@ -139,7 +164,9 @@ static float3 screenColor(texture2d<float> video, constant Uniforms &u,
     }
 
     if (u.mask > 0.001) {
-        float3 m = maskWeights(frag, int(u.maskType), u.mask, u.pixelScale);
+        // On a tube the mask is printed on the curved glass, so it bends with the picture.
+        float2 maskPos = tube > 0.5 ? u.rectOrigin + tuv * u.rectSize : frag;
+        float3 m = maskWeights(maskPos, int(u.maskType), u.mask, u.pixelScale);
         col *= m / (1.0 - u.mask * 0.45);
     }
 
@@ -156,6 +183,8 @@ static float3 screenColor(texture2d<float> video, constant Uniforms &u,
     }
 
     col = toGamma(col * u.brightness);
+    // A tube is never pure black: the phosphor coating reads as dark charcoal.
+    if (tube > 0.5) col = col * 0.975 + float3(0.022, 0.023, 0.025);
 
     if (tube > 0.5) {
         float2 hp = (p - float2(-0.42, -0.58)) * float2(1.1, 2.3);

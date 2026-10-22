@@ -59,7 +59,7 @@ struct PlayerCommands: Commands {
             Divider()
             Text("Efeitos CRT")
             ForEach(Array(CRTPreset.allCases.enumerated()), id: \.element) { index, preset in
-                Toggle(preset.name, isOn: Binding(get: { model.crtPreset == preset }, set: { _ in model.apply(preset) }))
+                Toggle(preset.name, isOn: Binding(get: { model.crtPreset == preset && !model.crtEdited }, set: { _ in model.apply(preset) }))
                     .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: [.command])
             }
         }

@@ -209,3 +209,11 @@
 "Em vídeos SD, uma linha do tubo para cada linha do vídeo." = "For SD video, one tube line per video line.";
 "TV com Gabinete automática no 4:3" = "Automatic Cabinet TV for 4:3";
 "Vídeos 4:3 ganham a TV inteira; widescreen fica com o efeito escolhido." = "4:3 videos get the whole TV; widescreen keeps the chosen effect.";
+"Listras verticais contínuas, como nas TVs Trinitron. Imagem mais clara e nítida." = "Continuous vertical stripes, as on Trinitron TVs. A brighter, sharper picture.";
+"Fendas desencontradas, como na maioria das TVs comuns. O visual mais típico de TV antiga." = "Staggered slots, as on most ordinary TVs. The most typical old-TV look.";
+"Pontinhos em triângulo, como nos monitores de computador. Textura fina e granulada." = "Dot triads, as on computer monitors. A fine, grainy texture.";
+"editado" = "edited";
+"O que é a máscara de fósforo?" = "What is the phosphor mask?";
+"Sobre os tipos de máscara" = "About mask types";
+"A tela de um CRT é feita de pontinhos vermelhos, verdes e azuis. O desenho desses pontos muda conforme o tipo de tubo — e muda a textura da imagem." = "A CRT screen is made of tiny red, green and blue phosphors. Their layout depends on the kind of tube — and it changes the texture of the picture.";
+"Editado" = "Edited";

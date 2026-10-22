@@ -3,6 +3,7 @@ import SwiftUI
 struct EffectsPanel: View {
     @Bindable var model: PlayerModel
     @State private var previews: [CRTPreset: CGImage] = [:]
+    @State private var showMaskInfo = false
 
     private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
 
@@ -12,9 +13,9 @@ struct EffectsPanel: View {
                 header
                 LazyVGrid(columns: columns, spacing: 8) {
                     ForEach(CRTPreset.allCases) { preset in
-                        PresetCard(preset: preset, selected: model.crtPreset == preset, preview: previews[preset]) {
-                            model.apply(preset)
-                        }
+                        let selected = model.crtPreset == preset
+                        PresetCard(preset: preset, selected: selected, edited: selected && model.crtEdited,
+                                   preview: previews[preset]) { model.apply(preset) }
                     }
                 }
                 if model.crt.enabled { adjustments }
@@ -31,8 +32,17 @@ struct EffectsPanel: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Efeitos CRT").font(.system(size: 17, weight: .bold))
-                Text(model.crtPreset?.name ?? "Personalizado")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(model.crtPreset.name)
+                    if model.crtEdited {
+                        Text("editado")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.phosphor.opacity(0.2)))
+                            .foregroundStyle(Color.phosphor)
+                    }
+                }
+                .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
             Toggle("", isOn: $model.crt.enabled).toggleStyle(.switch).tint(.phosphor).labelsHidden()
@@ -59,9 +69,16 @@ struct EffectsPanel: View {
 
             Divider().opacity(0.4)
             EffectSlider(title: "Scanlines", value: $model.crt.scanlines)
-            EffectSlider(title: "Máscara de fósforo", value: $model.crt.mask)
+            EffectSlider(title: "Máscara de fósforo", value: $model.crt.mask) {
+                Button { showMaskInfo.toggle() } label: { Image(systemName: "info.circle") }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("O que é a máscara de fósforo?")
+                    .accessibilityLabel("Sobre os tipos de máscara")
+                    .popover(isPresented: $showMaskInfo, arrowEdge: .leading) { MaskInfoView() }
+            }
             Picker("", selection: $model.crt.maskType) {
-                ForEach(CRTMaskType.allCases) { Text($0.label).tag($0) }
+                ForEach(CRTMaskType.allCases) { Text($0.label).tag($0).help($0.detail) }
             }
             .pickerStyle(.segmented).labelsHidden()
             EffectSlider(title: "Curvatura", value: $model.crt.curvature)
@@ -70,15 +87,11 @@ struct EffectsPanel: View {
             EffectSlider(title: "Ruído e interferência", value: $model.crt.noise)
             EffectSlider(title: "Brilho", value: $model.crt.brightness, range: 0.8...1.6)
 
-            if let preset = model.crtPreset ?? lastPresetGuess {
-                Button(String(localized: "Restaurar “\(preset.name)”")) { model.apply(preset) }
-                    .buttonStyle(.borderless).foregroundStyle(Color.phosphor).font(.system(size: 12, weight: .semibold))
-                    .disabled(model.crtPreset == preset)
-            }
+            Button(String(localized: "Restaurar “\(model.crtPreset.name)”")) { model.apply(model.crtPreset) }
+                .buttonStyle(.borderless).foregroundStyle(Color.phosphor).font(.system(size: 12, weight: .semibold))
+                .disabled(!model.crtEdited)
         }
     }
-
-    private var lastPresetGuess: CRTPreset? { model.crt.tube ? .trinitron : .classic }
 
     /// Renders the current frame through every preset (at 2× and shown
     /// smaller, so the scanlines stay legible), refreshed every few seconds.
@@ -99,56 +112,28 @@ struct EffectsPanel: View {
     }
 }
 
-private struct PresetCard: View {
-    let preset: CRTPreset
-    let selected: Bool
-    let preview: CGImage?
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 6) {
-                if let preview {
-                    Image(decorative: preview, scale: 1)
-                        .resizable()
-                        .aspectRatio(16 / 9, contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                } else {
-                    Image(systemName: preset.symbol)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(selected ? Color.phosphor : .white)
-                }
-                Text(preset.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                Text(preset.detail).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(selected ? Color.phosphor.opacity(0.16) : Color.white.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(selected ? Color.phosphor : Color.white.opacity(0.08), lineWidth: selected ? 1.5 : 1))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct EffectSlider: View {
+private struct EffectSlider<Accessory: View>: View {
     let title: LocalizedStringKey
     @Binding var value: Float
     var range: ClosedRange<Float> = 0...1
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack {
+            HStack(spacing: 4) {
                 Text(title).font(.system(size: 12, weight: .medium))
+                accessory
                 Spacer()
                 Text("\(Int((value * 100).rounded()))%")
                     .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.secondary)
             }
             Slider(value: $value, in: range).tint(.phosphor).controlSize(.small)
         }
+    }
+}
+
+private extension EffectSlider where Accessory == EmptyView {
+    init(title: LocalizedStringKey, value: Binding<Float>, range: ClosedRange<Float> = 0...1) {
+        self.init(title: title, value: value, range: range) { EmptyView() }
     }
 }

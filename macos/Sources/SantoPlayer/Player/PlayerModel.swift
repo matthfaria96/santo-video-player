@@ -65,7 +65,13 @@ final class PlayerModel {
     /// Network streams: no resume, covers or thumbnails.
     var isStream: Bool { currentURL.map { !MediaInput.isTrackable($0) } ?? false }
     var hasMedia: Bool { currentURL != nil }
-    var crtPreset: CRTPreset? { CRTPreset.matching(crt) }
+    /// The preset the viewer picked. Editing a slider keeps it selected (shown
+    /// as "editado"); it only changes when another preset is chosen.
+    private(set) var crtPreset: CRTPreset {
+        didSet { UserDefaults.standard.set(crtPreset.rawValue, forKey: "crtPreset") }
+    }
+    /// True when the sliders differ from the chosen preset's values.
+    var crtEdited: Bool { crt != crtPreset.settings }
     /// Frames mpv dropped or decoded late (for the diagnostics overlay).
     var droppedFrames: Int {
         Int((mpv?.int("frame-drop-count") ?? 0) + (mpv?.int("decoder-frame-drop-count") ?? 0))
@@ -86,10 +92,13 @@ final class PlayerModel {
         let defaults = UserDefaults.standard
         volume = defaults.object(forKey: "volume") as? Float ?? 1
         loopMode = LoopMode(rawValue: defaults.integer(forKey: "loop")) ?? .off
-        crt = defaults.data(forKey: "crt").flatMap { try? JSONDecoder().decode(CRTSettings.self, from: $0) }
+        let storedCRT = defaults.data(forKey: "crt").flatMap { try? JSONDecoder().decode(CRTSettings.self, from: $0) }
             ?? CRTPreset.trinitron.settings
+        crt = storedCRT
+        crtPreset = defaults.string(forKey: "crtPreset").flatMap(CRTPreset.init(rawValue:))
+            ?? CRTPreset.matching(storedCRT) ?? .trinitron
         renderer = try? CRTRenderer()
-        renderer?.settings = crt
+        renderer?.settings = storedCRT
         do {
             let client = try MPVClient(options: Self.mpvOptions)
             mpv = client
@@ -512,6 +521,7 @@ final class PlayerModel {
     // MARK: Effects, subtitles, misc
 
     func apply(_ preset: CRTPreset) {
+        crtPreset = preset
         crt = preset.settings
         flash(preset.name, symbol: preset.symbol)
     }

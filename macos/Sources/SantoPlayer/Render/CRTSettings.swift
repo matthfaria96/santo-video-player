@@ -13,6 +13,17 @@ enum CRTMaskType: Int, Codable, CaseIterable, Identifiable {
         case .shadow: return String(localized: "Pontos")
         }
     }
+
+    var detail: String {
+        switch self {
+        case .aperture:
+            return String(localized: "Listras verticais contínuas, como nas TVs Trinitron. Imagem mais clara e nítida.")
+        case .slot:
+            return String(localized: "Fendas desencontradas, como na maioria das TVs comuns. O visual mais típico de TV antiga.")
+        case .shadow:
+            return String(localized: "Pontinhos em triângulo, como nos monitores de computador. Textura fina e granulada.")
+        }
+    }
 }
 
 /// Everything the CRT shader needs. Values are normalised to 0...1 unless noted.
@@ -85,7 +96,8 @@ struct CRTSettings: Codable, Equatable {
 }
 
 enum CRTPreset: String, CaseIterable, Identifiable {
-    case off, classic, soft, arcade, trinitron, cabinet, oldTV, pvm
+    // Display order: the TVs first, then the flat effects.
+    case off, cabinet, trinitron, oldTV, classic, soft, arcade, pvm
 
     var id: String { rawValue }
 

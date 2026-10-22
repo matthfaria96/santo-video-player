@@ -56,3 +56,15 @@ final class ScanlineDensityTests: XCTestCase {
         XCTAssertEqual(CRTUniforms.scanlineCount(rectHeightPixels: 1600, pixelScale: 2), 400)
     }
 }
+
+final class PresetOrderTests: XCTestCase {
+    /// The TVs come right after "Sem efeito", then the flat effects.
+    func testTVsComeFirst() {
+        XCTAssertEqual(Array(CRTPreset.allCases.prefix(4)), [.off, .cabinet, .trinitron, .oldTV])
+        XCTAssertEqual(CRTPreset.allCases.count, 8)
+    }
+
+    func testEveryMaskTypeIsExplained() {
+        for type in CRTMaskType.allCases { XCTAssertFalse(type.detail.isEmpty, type.label) }
+    }
+}
